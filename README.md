@@ -13,3 +13,20 @@ A simple app that allows users to post messages on several channels
 5. In `App.js`, replace the stub for `const firebaseConfig = { ... }` with 
    the details you saved in Step 4c from the Lec 22 slides
 6. Run `expo start` to test your app. 
+
+## Images Branch
+
+This is the images branch, which allows adding images to chat posts
+that can be saved to Firebase storage and viewed in message posts.
+
+For details, study how `postMessage` works in `ChatViewScreen.js`,
+and how some messages contain an `imageUri` field that is filled
+from the `downloadURL` in Firebase storage. 
+
+### Known issues
+
+* On iPhones, the keyboard does not go away when a message 
+  is posted. Does someone know how to fix this?
+
+* On my iPad, posting an image works if the image is small,
+  but crashes if the image is big. 

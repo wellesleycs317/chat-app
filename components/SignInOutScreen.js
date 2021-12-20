@@ -189,6 +189,10 @@ export default function SignInOutScreen(props) {
           title='Sign Out'
           onPress={() => authProps.logOut()}
          />
+        <MyButton 
+          title='Chat'
+          onPress={() => props.navigation.navigate('Chat')}
+         />
       </View>
     </View>
 

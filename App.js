@@ -10,18 +10,23 @@ import { // access to authentication features:
          // for logging out:
          signOut
        } from "firebase/auth";
-import { // access to Firestore storage features:
+import { // access to Firestore features:
          getFirestore, 
        } from "firebase/firestore";
+import { // access to Firebase storage features (for files like images, video, etc.)
+         getStorage, 
+       } from "firebase/storage";
+
 import SignInOutScreen from './components/SignInOutScreen'; 
 import ChatViewScreen from './components/ChatViewScreen'; 
 import { formatJSON, emailOf } from './utils';
 import { globalStyles } from './styles/globalStyles';
 import StateContext from './components/StateContext';
 
+const Stack = createNativeStackNavigator();
+
 // *** REPLACE THIS STUB! ***
 // Your web app's Firebase configuration
-/* 
 const firebaseConfig = {
   apiKey: "...details omitted...",
   authDomain: "...details omitted...",
@@ -30,23 +35,13 @@ const firebaseConfig = {
   messagingSenderId: "...details omitted...",
   appId: "...details omitted...",
 };
-*/
-
-const Stack = createNativeStackNavigator();
-
-const firebaseConfig = {
-  apiKey: "AIzaSyC0oCv8q3b8b63NVMNHEjET3SSH7QMRtTQ",
-  authDomain: "chatapp-ef4ee.firebaseapp.com",
-  projectId: "chatapp-ef4ee",
-  storageBucket: "chatapp-ef4ee.appspot.com",
-  messagingSenderId: "619760702154",
-  appId: "1:619760702154:web:8b6d1638433dbc3ce25a33"
-};
 
 // Initialize Firebase
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp); // *** new for Firestore
+const db = getFirestore(firebaseApp); // for storaging messages in Firestore
+const storage = getStorage(firebaseApp, 
+     "chatapp-ef4ee.appspot.com"); // for storaging images in Firebase storage
 
 // According to   
 //   https://duckduckgo.com/?t=ffab&q=%22Setting+a+timer+for+a+long+period+of+time%22&ia=web
@@ -71,10 +66,8 @@ export default function App() {
    INITIALIZATION
    ***************************************************************************/
   // Shared state for authentication 
-  const [email, setEmail] = React.useState('fturbak@gmail.com'); // Provide default email for testing
-  const [password, setPassword] = React.useState('myPassword'); // Provide default passwored for testing
-  // const [email, setEmail] = React.useState(''); // Provide default email for testing
-  // const [password, setPassword] = React.useState(''); // Provide default passwored for testing
+  const [email, setEmail] = React.useState(''); // Provide default email for testing
+  const [password, setPassword] = React.useState(''); // Provide default passwored for testing
   const [loggedInUser, setLoggedInUser] = React.useState(null);
   function logOut() {
     console.log('logOut'); 
@@ -86,7 +79,7 @@ export default function App() {
     signOut(auth); // Will eventually set auth.currentUser to null     
   }
 
-  const firebaseProps = { auth, db }
+  const firebaseProps = { auth, db, storage }
 
   const authProps = { email, setEmail, 
                       password, setPassword, 

@@ -4,7 +4,7 @@ import { StyleSheet, Text, TouchableOpacity} from 'react-native';
 export default function MyButton(props) {
   return (
     <TouchableOpacity 
-      style={props.disabled ? styles.buttonDisabled : styles.button}
+      style={[props.disabled ? styles.buttonDisabled : styles.button, props.style]}
       onPress={props.onPress}
       disabled={props.disabled}
      >
