@@ -158,14 +158,16 @@ export default function SignInOutScreen(props) {
       <View style={authProps.loggedInUser === null ? styles.signInOutPane : globalStyles.hidden}>
           <View style={globalStyles.labeledInput}>
             <Text style={globalStyles.inputLabel}>Email:</Text>
-            <TextInput placeholder="Enter an email address" 
+            <TextInput 
+              placeholder="Enter your email address" 
               style={globalStyles.textInput} 
               value={authProps.email} 
               onChangeText={ textVal => authProps.setEmail(textVal)} />
           </View>
           <View style={globalStyles.labeledInput}>
             <Text style={globalStyles.inputLabel}>Password:</Text>
-            <TextInput placeholder="Enter a password" 
+            <TextInput 
+              placeholder="Enter your password" 
               style={globalStyles.textInput} 
               value={authProps.password} 
               onChangeText={ textVal => authProps.setPassword(textVal)} />
@@ -200,16 +202,11 @@ export default function SignInOutScreen(props) {
 }
 
 const styles = StyleSheet.create({
-  buttonDisabled: {
+  signInOutPane: {
+      flex: 3, 
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      borderRadius: 10,
-      elevation: 3,
-      backgroundColor: 'powderblue',
-      margin: 5,
-  },
+  }, 
   errorBox: {
       width: '80%',
       borderWidth: 1,

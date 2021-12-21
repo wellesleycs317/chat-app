@@ -20,6 +20,9 @@ import { globalStyles } from '../styles/globalStyles';
 import { testMessages } from '../fakeData';
 import StateContext from './StateContext';
 
+const displayDebugButton = false; // Controls whether Debug button is displayed at top of screen
+const displayPopulateButton = false; // Controls wheter Populate button is displayed top of screen
+
 // Default initial channels
 const defaultChannels = ['Arts', 'Crafts', 'Food', 'Gatherings', 'Outdoors'];
 
@@ -52,11 +55,9 @@ export default function ChatViewScreen(props) {
    CHAT CHANNEL/MESSAGE CODE
    ***************************************************************************/
 
-  // component mount and unmount
+  // Get messages for current channel when ChatViewScreen mounts. 
   useEffect(() => {
-
       console.log('ChatViewScreen did mount');
-      
 
       console.log(`on mount: getMessagesForChannel('${selectedChannel}')`);
       getMessagesForChannel(selectedChannel); // find messages on mount 
@@ -71,226 +72,34 @@ export default function ChatViewScreen(props) {
       }
     }, []);
 
-  // Update messages when selectedChannel or localMessageDB changes
+  // Update messages when selectedChannel, localMessageDB, or usingFirestore changes
   useEffect(
     () => { 
       getMessagesForChannel(selectedChannel); 
       setTextInputValue(''); // empirically need on iOS to prevent keeping 
                              // text completion from most recent post
     },
-    [selectedChannel, localMessageDB]
+    [selectedChannel, localMessageDB, usingFirestore]
   ); 
 
+  /**
+   * Toggle between using localDB (for testing) and Firestore
+   */
   function toggleStorageMode() {
     setUsingFirestore(!usingFirestore);
-  }
+    // Note that getMessagesForChannel(selectedChannel) is re-executed 
+    // by above useEffect when usingFirestore changes. 
+   }
 
-  /* 
-   import { collection, query, where, getDocs } 
-   const q = query(collection(db, "cities"), where("capital", "==", true));
-   const querySnapshot = await getDocs(q);
-  */ 
-
-  async function getMessagesForChannel(chan) {
-    console.log(`getMessagesForChannel(${chan}); usingFirestore=${usingFirestore}`);
-    if (usingFirestore) {
-      firebaseGetMessagesForChannel(chan); 
-    } else {
-      setSelectedMessages(localMessageDB.filter( msg => msg.channel === chan));
-    }
-  }
-
-  function docToMessage(msgDoc) {
-    // msgDoc has the form {id: timestampetring, 
-    //                   data: {timestamp: ..., 
-    //                          author: ..., 
-    //                          channel: ..., 
-    //                          content: ...}
-    // Need to add missing date field to data portion, reconstructed from timestamp
-    console.log('docToMessage');
-    const data = msgDoc.data();
-    console.log(msgDoc.id, " => ", data);
-    return {...data, date: new Date(data.timestamp)}
-  }
-
-  async function firebaseGetMessagesForChannel(chan) {
-    const q = query(collection(db, 'messages'), where('channel', '==', chan));
-    const querySnapshot = await getDocs(q);
-    // const messages = Array.from(querySnapshot).map( docToMessage );
-    let messages = []; 
-    querySnapshot.forEach(doc => {
-        messages.push(docToMessage(doc));
-    });
-    setSelectedMessages( messages );
-  }
-
-  function composeMessage() {
-    setIsComposingMessage(true);
-  }
-
-  function cancelMessage() {
-    setIsComposingMessage(false);
-    setPostImageUri(null);
-  }
-
-  async function postMessage() {
-    console.log(`postMessage; usingFirestore=${usingFirestore}`);
-    Keyboard.dismiss(); // hide the keyboard
-    const now = new Date();
-    const timestamp = now.getTime(); // millsecond timestamp
-    const newMessage = {
-      'author': authProps.loggedInUser.email, 
-      'date': now, 
-      'timestamp': timestamp, 
-      'channel': selectedChannel, 
-      'content': textInputValue, 
-    }
-    if (postImageUri) {
-      newMessage.imageUri = postImageUri; // Local image uri
-    }
-    // Want to see new message immediately, no matter what:
-    setSelectedMessages([...selectedMessages, newMessage]) 
-    setIsComposingMessage(false);
-    setTextInputValue('');
-    if (! usingFirestore) {
-      setLocalMessageDB([...localMessageDB, newMessage]);
-    } else {
-      if (!postImageUri) {
-        firebasePostMessage(newMessage);
-      } else {
-        // If there's an image, we need to
-        // (1) store the image in Firebase storage
-        // (2) wait to for the downloadURL to include in the message
-        // (3) and only then post the message with the download URL
-        const storageRef = ref(storage, `chatImages/${timestamp}`);
-        const fetchResponse = await fetch(postImageUri);
-        // console.log(`fetchResponse: ${JSON.stringify(fetchResponse)}`);
-        const imageBlob = await fetchResponse.blob();
-        // console.log(`imageBlob: ${JSON.stringify(imageBlob)}`);
-        const uploadTask = uploadBytesResumable(storageRef, imageBlob);
-        // console.log(`uploadTask: ${JSON.stringify(uploadTask)}`);
-        console.log(`Uploading image for message ${timestamp} ...`);
-        uploadTask.on('state_changed',
-                (snapshot) => {
-                  // Get task progress, including the number of bytes uploaded and the total number of bytes to be uploaded
-                  const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                  console.log('Upload is ' + progress + '% done');
-                  switch (snapshot.state) {
-                  case 'paused':
-                    console.log('Upload is paused');
-                    break;
-                  case 'running':
-                    console.log('Upload is running');
-                    break;
-                  }
-                }, 
-                (error) => {
-                  console.error(error);
-                }, 
-                async function() {
-                  console.log(`Uploading image for message ${timestamp} succeeded!`);
-                  const downloadURL = await getDownloadURL(storageRef);
-                  console.log(`Message image file for ${timestamp} available at ${downloadURL}`);
-                  const messageWithDownloadURL = {...newMessage, imageUri: downloadURL}; 
-                  firebasePostMessage(messageWithDownloadURL);
-                  setPostImageUri(null);
-                });
-        /*
-        uploadTask.on('state_changed', function(snapshot) {
-          }, function(error){
-            console.error(error);
-          }, async function() {
-            console.log(`Uploading image for message ${timestamp} succeeded!`);
-            const downloadURL = await getDownloadURL(storageRef);
-            console.log(`Message image file for ${timestamp} available at ${downloadURL}`);
-            const messageWithDownloadURL = {...newMessage, imageUri: downloadURL}; 
-            firebasePostMessage(messageWithDownloadURL);
-            setPostImageUri(null);
-          });
-        */
-      }
-    }
-  }
-
-
-
-  /*
-    // Create the file metadata
-  const metadata = {
-    contentType: 'image/jpeg'
-  };
-  uploadImage = async(uri) => {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    var ref = firebaseApp.storage().ref().child("my-image");
-    return ref.put(blob);
-  }
-
-  // Upload file and metadata to the object 'images/mountains.jpg'
-  const storageRef = ref(storage, 'images/' + file.name);
-  const uploadTask = uploadBytesResumable(storageRef, file, metadata);
-
-  // Listen for state changes, errors, and completion of the upload.
-  uploadTask.on('state_changed',
-                (snapshot) => {
-                  // Get task progress, including the number of bytes uploaded and the total number of bytes to be uploaded
-                  const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                  console.log('Upload is ' + progress + '% done');
-                  switch (snapshot.state) {
-                  case 'paused':
-                    console.log('Upload is paused');
-                    break;
-                  case 'running':
-                    console.log('Upload is running');
-                    break;
-                  }
-                }, 
-                (error) => {
-                  // A full list of error codes is available at
-                  // https://firebase.google.com/docs/storage/web/handle-errors
-                  switch (error.code) {
-                  case 'storage/unauthorized':
-                  // User doesn't have permission to access the object
-                  break;
-                  case 'storage/canceled':
-                  // User canceled the upload
-                  break;
-
-                  // ...
-
-                  case 'storage/unknown':
-                  // Unknown error occurred, inspect error.serverResponse
-                  break;
-                  }
-                }, 
-                () => {
-                  // Upload completed successfully, now we can get the download URL
-                  getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-                      console.log('File available at', downloadURL);
-                    });
-                }
-                );
-
-  */
-
-
-  async function firebasePostMessage(msg) {
-    // Add a new document in collection "messages"
-    const timestampString = msg.timestamp.toString();
-    const docMessage = {
-          'timestamp': msg.timestamp, 
-          'author': msg.author, 
-          'channel': msg.channel, 
-          'content': msg.content, 
-        }
-    if (msg.imageUri) {
-      docMessage.imageUri = msg.imageUri;
-    }
-    console.log(`firebasePostMessage ${JSON.stringify(docMessage)}`);
-    await setDoc(doc(db, "messages", timestampString), docMessage);
-  }
-
-  async function populateFirestoreDB(messages) {
+  /**
+   * Populate Firestore with some initial test messages. 
+   * Should only call this *once*, *not* every time the app runs. 
+   * This is the action of the Populate button, which is only displayed
+   * if displayPopulateButton is true. 
+   * This is just an example of populating Firestore with fake data;
+   * adapt it to your purposes.
+   */ 
+   async function populateFirestoreDB(messages) {
 
     // Returns a promise to add message to firestore
     async function addMessageToDB(message) {
@@ -313,17 +122,93 @@ export default function ChatViewScreen(props) {
       messages.map( addMessageToDB ) 
     );
 
+    alert("Firestore has been populated with test messages."
+          + " You can remove this button by changing the value of"
+          + " displayDebugButton from true to false near the top of"
+          + " components/ChatViewScreen.js.");
   }
 
-  function signOutAndGoToSignIn() {
-    authProps.logOut();
-    props.navigation.navigate('Sign In/Out'); 
+  /**
+   * Get current messages for the given channel
+   */ 
+  async function getMessagesForChannel(chan) {
+    console.log(`getMessagesForChannel(${chan}); usingFirestore=${usingFirestore}`);
+    if (usingFirestore) {
+      firebaseGetMessagesForChannel(chan); 
+    } else {
+      setSelectedMessages(localMessageDB.filter( msg => msg.channel === chan));
+    }
   }
 
-  function formatDateTime(date) {
-    return `${date.toLocaleDateString('en-US')} ${date.toLocaleTimeString('en-US')}`; 
+  /**
+   * Get current messages for the given channel from Firebase's Firestore
+   */ 
+  async function firebaseGetMessagesForChannel(chan) {
+    const q = query(collection(db, 'messages'), where('channel', '==', chan));
+    const querySnapshot = await getDocs(q);
+    let messages = []; 
+    querySnapshot.forEach(doc => {
+        messages.push(docToMessage(doc));
+    });
+    setSelectedMessages( messages );
   }
 
+  /**
+   * Convert a Firebase message doc to a local message object
+   * by adding a human-readable date (which isn't stored in Firestore).
+   */ 
+  function docToMessage(msgDoc) {
+    // msgDoc has the form {id: timestampetring, 
+    //                   data: {timestamp: ..., // a number, not a string 
+    //                          author: ..., // email address
+    //                          channel: ..., // name of channel 
+    //                          content: ..., // string for contents of message. 
+    //                          imageUri: ... // optional field containing downloadURL for
+    //                                        // image file stored in Firebase's storage
+    //                          }
+    // Need to add missing date field to data portion, reconstructed from timestamp
+    console.log('docToMessage');
+    const data = msgDoc.data();
+    console.log(msgDoc.id, " => ", data);
+    return {...data, date: new Date(data.timestamp)}
+  }
+
+  /**
+   * Open an area for message composition. Currently uses conditional formatting
+   * (controlled by isComposingMessage state variabel) to do this within ChatViewScreen,
+   * but really should be done by a Modal or separate screen. 
+   */ 
+  function composeMessage() {
+    setIsComposingMessage(true);
+  }
+
+  /**
+   * Cancel the current message composition. 
+   * This is the action for the Cancel button in the message composition pane.
+   */ 
+  function cancelMessage() {
+    setIsComposingMessage(false);
+    setPostImageUri(null);
+  }
+
+  /**
+   * Add an image to the message being composed. 
+   * This is the action for the Add Image button in the message composition pane.
+   * Currently, only one image can be added to a message; calling this
+   * when there's already an image changes the image to be added. 
+   * This behavior could be modified to support a *list* of an arbitrary
+   * number of images. 
+   */ 
+  async function addImageToMessage () {
+    await(pickImage());
+  } 
+
+  /**
+   * Pick an image from the device's image gallery and store it in 
+   * the state variable postImageUri. 
+   * For a simple demonstration of image picking, see the Snack 
+   * https://snack.expo.dev/@fturbak/image-picker
+   */ 
   async function pickImage () {
     // No permissions request is necessary for launching the image library
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -340,46 +225,215 @@ export default function ChatViewScreen(props) {
     }
   };
 
-  async function addImageToMessage () {
-    await(pickImage());
-  } 
-
-  const DismissKeyboard = ({ children }) => (
-    <TouchableWithoutFeedback
-    onPress={() => Keyboard.dismiss()}>
-      {children}
-    </TouchableWithoutFeedback>
-  );
-
-  function debug() {
-    const debugObj = {
-      channels: channels, 
-      selectedChannel, selectedChannel, 
-      selectedMessages: selectedMessages, 
+  /**
+   * Post a message to the the currently selected chat room.
+   */ 
+  async function postMessage() {
+    console.log(`postMessage; usingFirestore=${usingFirestore}`);
+    Keyboard.dismiss(); // hide the keyboard upon posting
+    setIsComposingMessage(false); // remove composition pane
+    setTextInputValue(''); // clear text input for next time
+    const now = new Date();
+    const timestamp = now.getTime(); // millsecond timestamp
+    const newMessage = {
+      'author': authProps.loggedInUser.email, 
+      'date': now, 
+      'timestamp': timestamp, 
+      'channel': selectedChannel, 
+      'content': textInputValue, 
     }
-    alert(formatJSON(debugObj));
+    // Add imageUri to newMessage if there is one. 
+    if (postImageUri) {
+      newMessage.imageUri = postImageUri; // Local image uri
+    }
+    // Want to see new message immediately, no matter what,
+    // independent of local vs Firebase mode. 
+    setSelectedMessages([...selectedMessages, newMessage]) 
+
+    if (! usingFirestore) {
+      setLocalMessageDB([...localMessageDB, newMessage]);
+    } else {
+      if (!postImageUri) {
+        firebasePostMessage(newMessage);
+      } else {
+        // Posting message with image is more complicated,
+        // have a separate helper function for this
+        firebasePostMessageWithImage(newMessage)
+      }
+    }
   }
 
-  function debugButton(bool) {
-    if (bool) {
+  /**
+   * Post a message to Firebase's Firestore by adding a new document
+   * for the message in the "messages" collection. It is expected that 
+   * msg is a JavaScript object with fields timestamp, date, author, 
+   * channel, and content, and an optional imageUri field 
+   * (which, if it exists, should be the downloadURL for an image
+   * stored in Firebase's storage)
+   */ 
+  async function firebasePostMessage(msg) {
+    // Convert millisecond timestamp to string 
+    // (Firestore document keys need to be strings)
+    const timestampString = msg.timestamp.toString(); 
+    
+    // Don't want to store date field in firestore, 
+    // so make a copy of message and delete the date field. 
+    const docMessage = {...msg} // copy the message
+    if (Object.keys(docMessage).includes('date')) {
+      delete docMessage.date; // delete the date field
+    }
+    console.log(`firebasePostMessage ${JSON.stringify(docMessage)}`);
+    await setDoc(
+        // First argument to setDoc is a doc object 
+        doc(db, "messages", timestampString), 
+        docMessage);
+  }
+
+  /**
+   * Post a message with an image. This is more complicated than
+   * posting a message without an image, because with an image we need to:
+   * (1) store the image in Firebase storage (different than Firestore)
+   * (2) get the downloadURL for the image in Firebase storage
+   * (3) add the downloadURL as the imageUri for the msg
+   * (4) post the msg-with-imageUri to Firestore. 
+   */ 
+  async function firebasePostMessageWithImage(msg, imageUri) {
+    // First: create a so-called storageRef, an abstraction location 
+    // in Firebase's storages (different from Firestore!) where the
+    // bits of the image will be stored. 
+    const storageRef = ref(storage, `chatImages/${timestamp}`);
+
+    // Second: turn a local image from an image picker into 
+    // a so-called Blob that can be uploaded to Firebase storage. 
+    // Lyn learned the next critical two lines of code from 
+    // Bianca Pio and Avery Kim's Goose app: 
+    const fetchResponse = await fetch(postImageUri);
+    const imageBlob = await fetchResponse.blob();
+
+    // Third: upload the image blob to Firebase storage.
+    // uploadBytesResumable returns a Promise (here called uploadTask)
+    // that receives state changes about upload progress that are here 
+    // displayed in the console, but could be displayed in the app itself. 
+    const uploadTask = uploadBytesResumable(storageRef, imageBlob);
+    console.log(`Uploading image for message ${timestamp} ...`);
+    uploadTask.on('state_changed',
+      // This callback is called with a snapshot on every progress update
+      (snapshot) => {
+        // Get task progress, including the number of bytes uploaded 
+        // and the total number of bytes to be uploaded
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload is ' + progress + '% done');
+        switch (snapshot.state) {
+          case 'paused':
+            console.log('Upload is paused');
+            break;
+          case 'running':
+            console.log('Upload is running');
+            break;
+            }
+      }, 
+      // This callback is called when there's an error in the upload
+      (error) => {
+        console.error(error);
+      }, 
+      // This callback is called when the upload is finished 
+      async function() {
+        console.log(`Uploading image for message ${timestamp} succeeded!`);
+        // Once the upload is finished, get the downloadURL for the uploaed image
+        const downloadURL = await getDownloadURL(storageRef);
+        console.log(`Message image file for ${timestamp} available at ${downloadURL}`);
+
+        // Add the downloadURL as the imageUri for the message
+        const messageWithDownloadURL = {...newMessage, imageUri: downloadURL}; 
+
+        // Store (in Firestore) the message with the downloadURL as imageUri
+        firebasePostMessage(messageWithDownloadURL);
+
+        // Clear postImageUri in preparation for the next message composition. 
+        setPostImageUri(null);
+      }      
+    ); // end arguments to uploadTask.on
+  }
+
+  /**
+   * Action for the signOut button
+   */ 
+  function signOutAndGoToSignIn() {
+    authProps.logOut();
+    props.navigation.navigate('Sign In/Out'); // go to Sign In/Out page 
+  }
+
+  /**
+   * Helper function for formatting data for messages 
+   */ 
+  function formatDateTime(date) {
+    return `${date.toLocaleDateString('en-US')} ${date.toLocaleTimeString('en-US')}`; 
+  }
+
+  /**
+   * Button for displaying debugging information within app itself. 
+   * The button is displayed only if the argument is true
+   */ 
+  function debugButton() {
+    if (displayDebugButton) {
       return (
-        <TouchableOpacity style={styles.button}
-           onPress={debug}>
-          <Text style={styles.buttonText}>Debug</Text>
-        </TouchableOpacity> 
+        <MyButton
+          title='Debug'
+          onPress={debug}
+        />
       ); 
     } else {
-      return false;
+      return false; // No component will be rendered
     }
   }                                                                                      
 
+  /**
+   * Action for the Debug button. 
+   * Displays information about channels and messages. 
+   * This is just an example of displaying debugging information; 
+   * adapt it to your purposes.
+   */ 
+  function debug() {
+    const debugObj = {
+      channels: channels, 
+      selectedChannel: selectedChannel, 
+      selectedMessages: selectedMessages, 
+    }
+    alert("Below are values of relevant variables."
+          + " You can remove this button by changing the value of"
+          + " displayPopulateButton from true to false near the top of"
+          + " components/ChatViewScreen.js.\n"
+          + formatJSON(debugObj)); 
+  }
+
+  /**
+   * Button for populating Firestore with a list of fake chat messages. 
+   * The button is displayed only if the argument is true
+   */ 
+  function populateButton() {
+    if (displayPopulateButton) {
+      return (
+        <MyButton
+          title='Populate Firestore'
+          onPress={() =>populateFirestoreDB(testMessages)}
+        />
+      ); 
+    } else {
+      return false; // No component will be rendered
+    }
+  }                                                                                      
+
+  /**
+   * MessageItem is a simple component for displaying a single chat message
+   */
   const MessageItem = props => { 
     return (
       <View style={styles.messageItem}>
         <Text style={styles.messageDateTime}>{formatDateTime(props.message.date)}</Text>
         <Text style={styles.messageAuthor}>{props.message.author}</Text>
         <Text style={styles.messageContent}>{props.message.content}</Text>
-        {props.message.imageUri &&
+        {// Conditionall display image if there is one: 
+          props.message.imageUri &&
           <Image
             style={styles.thumbnail}
             source={{uri: props.message.imageUri}}
@@ -400,7 +454,8 @@ export default function ChatViewScreen(props) {
           value={textInputValue} 
           onChangeText={(value) => setTextInputValue(value)}
         /> 
-        {postImageUri &&
+        {// Conditionally display image if there is one: 
+         postImageUri &&
           <Image
             style={styles.thumbnail}
             source={{uri: postImageUri}}
@@ -426,7 +481,10 @@ export default function ChatViewScreen(props) {
 
   return (
       <View style={globalStyles.screen}>
-        {debugButton(false)}
+        <View style={globalStyles.buttonHolder}>
+          {debugButton()}
+          {populateButton()}
+        </View> 
         <Text>{emailOf(authProps.loggedInUser)} is logged in</Text>
         <Text>{`usingFirestore=${usingFirestore}`}</Text>
         <MyButton 
@@ -462,6 +520,8 @@ export default function ChatViewScreen(props) {
          <FlatList style={styles.messageList}
             data={selectedMessages} 
             renderItem={ datum => <MessageItem message={datum.item}></MessageItem>} 
+            // keyExtractor extracts a unique key for each item, 
+            // which removes warnings about missing keeys 
             keyExtractor={item => item.timestamp} 
             />
         }
