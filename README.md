@@ -25,8 +25,13 @@ from the `downloadURL` in Firebase storage.
 
 ### Known issues
 
-* On iPhones, the keyboard does not go away when a message 
-  is posted. Does someone know how to fix this?
+* On Lyn's iPad, posting an image works if the image is small,  but crashes if the image is big. 
+  However, posting large images seemed to work on an iPhone on which I tested the app. 
+  Let me know if you experience any issues!
 
-* On my iPad, posting an image works if the image is small,
-  but crashes if the image is big. 
+### Fixed issues
+
+* The lastest version calls `Keyboard.dismiss()` to hide the keyboard when posting a message. 
+  
+
+

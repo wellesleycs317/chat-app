@@ -41,7 +41,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp); // for storaging messages in Firestore
 const storage = getStorage(firebaseApp, 
-     "chatapp-ef4ee.appspot.com"); // for storaging images in Firebase storage
+    firebaseConfig.storageBucket) // for storaging images in Firebase storage
 
 // According to   
 //   https://duckduckgo.com/?t=ffab&q=%22Setting+a+timer+for+a+long+period+of+time%22&ia=web

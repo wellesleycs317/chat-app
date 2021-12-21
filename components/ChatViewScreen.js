@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { FlatList, Image, LogBox, StyleSheet, ScrollView, 
+import { FlatList, Image, Keyboard, LogBox, StyleSheet, ScrollView, 
          Text, TextInput, TouchableOpacity, 
          TouchableWithoutFeedback, View } from 'react-native';
 import {Picker} from '@react-native-picker/picker';
@@ -135,6 +135,7 @@ export default function ChatViewScreen(props) {
 
   async function postMessage() {
     console.log(`postMessage; usingFirestore=${usingFirestore}`);
+    Keyboard.dismiss(); // hide the keyboard
     const now = new Date();
     const timestamp = now.getTime(); // millsecond timestamp
     const newMessage = {
